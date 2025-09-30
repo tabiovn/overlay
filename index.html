@@ -1,0 +1,755 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>MARCOMJOB - Ghép Ảnh</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      /* slate-900 */
+      --panel: #111827;
+      /* gray-900 */
+      --muted: #334155;
+      /* slate-600 */
+      --text: #e5e7eb;
+      /* gray-200 */
+      --accent: #22d3ee;
+      /* cyan-400 */
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: NotoSans-Regular,-apple-system,BlinkMacSystemFont,Roboto,Helvetica Neue,Helvetica,Tahoma,Arial,PingFang SC,Microsoft YaHei,sans-serif!important
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100%
+    }
+
+    header {
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      padding: .75rem 1rem;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0));
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10
+    }
+
+    header h1 {
+      font-size: 1rem;
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: .2px
+    }
+
+    .controls {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    .btn {
+      background: var(--panel);
+      border: 1px solid var(--muted);
+      color: var(--text);
+      padding: .55rem .8rem;
+      border-radius: .65rem;
+      cursor: pointer;
+      transition: transform .04s ease, background .2s ease
+    }
+
+    .btn:hover {
+      background: #0b1220
+    }
+
+    .btn:active {
+      transform: translateY(1px)
+    }
+
+    .btn.accent {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px #0ea5b7 inset
+    }
+
+    .file {
+      display: inline-block
+    }
+
+    .file input {
+      display: none
+    }
+
+    .file label {
+      display: inline-block
+    }
+
+    .hint {
+      opacity: .7;
+      font-size: .875rem
+    }
+
+    /* Canvas stage */
+    .stage-wrap {
+      display: grid;
+      place-items: center;
+      padding: 10px
+    }
+
+    .stage {
+      _width: min(100%, 1200px);
+      border: 1px dashed var(--muted);
+      border-radius: .75rem;
+      position: relative;
+      background: #0b1220;
+      overflow: auto;
+    }
+
+
+    /* The visible canvas scales responsively; the drawing buffer uses real pixel size of BG */
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #000;
+      touch-action: none
+    }
+
+    /* Toolbar (bottom) */
+    .toolbar {
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      padding: .75rem;
+      border-top: 1px solid #1f2937;
+      background: linear-gradient(0deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0));
+    }
+
+    .group {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      flex-wrap: wrap;
+      background: #0b1220;
+      border: 1px solid #1f2937;
+      border-radius: .75rem;
+      padding: .5rem .75rem
+    }
+
+    .group label {
+      font-size: .825rem;
+      opacity: .8
+    }
+
+    .group input[type=range] {
+      width: 160px
+    }
+
+    .pill {
+      padding: .25rem .55rem;
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      background: #0b1220;
+      font-size: .75rem;
+      opacity: .9
+    }
+
+    footer {
+      padding: .6rem 1rem;
+      display: flex;
+      justify-content: center;
+      gap: .75rem;
+      flex-wrap: wrap;
+      opacity: .8;
+      font-size: .85rem
+    }
+
+    a.link {
+      color: #7dd3fc
+    }
+
+    /* Mobile tweaks */
+    @media (max-width:600px) {
+      .group input[type=range] {
+        width: 120px
+      }
+
+      header h1 {
+        font-size: .95rem
+      }
+
+      img {
+        height: 20px !important
+      }
+    }
+  </style>
+
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <div style="display:flex;align-items:center">
+        <img src="https://marcomjob.vn/assets/images/logo/logo-light.png" alt="" height="28" style="margin-right:8px">
+        <h1>Ghép Ảnh</h1>
+      </div>
+      <div class="controls">
+        <span class="file">
+          <label class="btn accent" for="bgFile">1. CHỌN NỀN</label>
+          <input id="bgFile" type="file" accept="image/*" onchange="onPickBg(this)" />
+        </span>
+        <span class="file">
+          <label class="btn" for="fgFile">2. CHỌN LỚP PHỦ</label>
+          <input id="fgFile" type="file" accept="image/png,image/webp,image/*" onchange="onPickFg(this)" />
+        </span>
+        <button class="btn" onclick="centerOverlay()">Căn Giữa Lớp Phủ</button>
+        <button class="btn" onclick="resetAll()">Làm Mới</button>
+        <a href="https://www.adobe.com/express/feature/image/remove-background" target="_blank"><button id="viewModeBtn" class="btn">Xóa Nền</button></a>
+        <button class="btn accent" onclick="exportPNG()">3. LƯU ẢNH</button>
+      </div>
+    </header>
+
+    <main class="stage-wrap">
+      <div class="stage">
+        <canvas id="stage" aria-label="Trình soạn ảnh"></canvas>
+      </div>
+    </main>
+
+    <div style="text-align:center; margin:8px 8px 8px 8px;">
+      <button class="btn accent" onclick="exportPNG()">LƯU ẢNH</button>
+    </div>
+
+    <div class="toolbar">
+      <div class="group">
+        <label for="scaleRange">Kích thước</label>
+        <input id="scaleRange" type="range" min="0.1" max="5" step="0.01" value="1" oninput="setScale(this.value)" />
+        <span class="pill" id="scaleVal">1.00×</span>
+      </div>
+      <div class="group">
+        <label for="rotateRange">Xoay</label>
+        <input id="rotateRange" type="range" min="-180" max="180" step="1" value="0" oninput="setRotate(this.value)" />
+        <span class="pill" id="rotateVal">0°</span>
+      </div>
+      <div class="group">
+        <button class="btn" onclick="nudge(-5,0)">◀︎</button>
+        <button class="btn" onclick="nudge(5,0)">▶︎</button>
+        <button class="btn" onclick="nudge(0,-5)">▲</button>
+        <button class="btn" onclick="nudge(0,5)">▼</button>
+      </div>
+      <div class="group">
+        <button class="btn" onclick="scaleStep(0.9)">−</button>
+        <button class="btn" onclick="scaleStep(1.1)">+</button>
+      </div>
+    </div>
+
+    <footer>
+      <span class="hint">Mẹo: Kéo thả để di chuyển PNG. Cuộn chuột để phóng to/thu nhỏ. Trên điện thoại: chụm 2 ngón để
+        zoom, xoay 2 ngón để xoay.</span>
+    </footer>
+  </div>
+
+  <script>
+    /* ===================== State ===================== */
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+
+    const ui = {
+      scaleRange: document.getElementById('scaleRange'),
+      rotateRange: document.getElementById('rotateRange'),
+      scaleVal: document.getElementById('scaleVal'),
+      rotateVal: document.getElementById('rotateVal'),
+    };
+
+    const state = {
+      bg: null,
+      fg: null,
+      width: 720,
+      height: 720,
+      x: 360,
+      y: 640,
+      scale: 1,
+      rotation: 0,
+      dragging: false,
+      dragOffset: { x: 0, y: 0 },
+      pointers: new Map(),
+      gestureStart: null,
+      viewMode: 'fit', // 'fit' | '1:1'
+      showGuide: true, // KHÔNG xuất nét đứt khi export
+    };
+
+    // rAF scheduler để gom render tối đa 60fps
+    let rafId = 0;
+    let renderScheduled = false;
+    function scheduleRender() {
+      if (renderScheduled) return;
+      renderScheduled = true;
+      rafId = requestAnimationFrame(() => {
+        renderScheduled = false;
+        render();
+      });
+    }
+
+    // Cache phép chiếu Client->Canvas
+    let map = { left: 0, top: 0, sx: 1, sy: 1 };
+    function recomputeCanvasMapping() {
+      const r = canvas.getBoundingClientRect();
+      map.left = r.left; map.top = r.top;
+      map.sx = canvas.width / r.width;
+      map.sy = canvas.height / r.height;
+    }
+
+    // Buffer nền để chỉ vẽ nền một lần
+    let bgBuf = document.createElement('canvas');
+    let bgCtx = bgBuf.getContext('2d');
+    function rebuildBgBuffer() {
+      bgBuf.width = canvas.width;
+      bgBuf.height = canvas.height;
+      if (state.bg) {
+        bgCtx.clearRect(0, 0, bgBuf.width, bgBuf.height);
+        bgCtx.drawImage(state.bg, 0, 0, bgBuf.width, bgBuf.height);
+      } else {
+        drawCheckerboard(bgCtx, bgBuf.width, bgBuf.height);
+      }
+    }
+
+    resizeCanvasBuffer(state.width, state.height);
+    rebuildBgBuffer();
+    scheduleRender();
+    fitCanvasCSS();
+    recomputeCanvasMapping();
+    window.addEventListener('resize', () => { fitCanvasCSS(); recomputeCanvasMapping(); });
+
+    /* ===================== File pickers ===================== */
+    function onPickBg(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        state.bg = img;
+        state.width = img.naturalWidth;
+        state.height = img.naturalHeight;
+        resizeCanvasBuffer(state.width, state.height);
+        rebuildBgBuffer();
+        state.viewMode = 'fit';
+        updateViewModeLabel();
+        if (state.fg) {
+          const s = (Math.min(state.width, state.height) * 0.3) / Math.max(state.fg.naturalWidth, state.fg.naturalHeight);
+          state.scale = s;
+          centerOverlay();
+        }
+        scheduleRender();
+        fitCanvasCSS();
+        recomputeCanvasMapping();
+      };
+      img.onerror = () => alert('Không thể đọc ảnh nền.');
+      img.src = URL.createObjectURL(file);
+    }
+
+    function onPickFg(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        state.fg = img;
+        const base = Math.max(img.naturalWidth, img.naturalHeight);
+        const fit = Math.min(state.width, state.height) * 0.35;
+        state.scale = fit / base;
+        ui.scaleRange.value = state.scale.toFixed(2);
+        ui.scaleVal.textContent = `${state.scale.toFixed(2)}×`;
+        state.rotation = 0;
+        ui.rotateRange.value = 0;
+        ui.rotateVal.textContent = `0°`;
+        centerOverlay();
+        scheduleRender();
+        fitCanvasCSS();
+        recomputeCanvasMapping();
+      };
+      img.onerror = () => alert('Không thể đọc PNG overlay.');
+      img.src = URL.createObjectURL(file);
+    }
+
+    /* ===================== Canvas buffer & rendering ===================== */
+    function resizeCanvasBuffer(w, h) {
+      canvas.width = w;
+      canvas.height = h;
+      // recomputeCanvasMapping();
+    }
+
+    function clear() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function render() {
+      clear();
+      // background từ buffer
+      ctx.drawImage(bgBuf, 0, 0);
+
+      // overlay
+      if (state.fg) {
+        const w = state.fg.naturalWidth * state.scale;
+        const h = state.fg.naturalHeight * state.scale;
+        ctx.save();
+        ctx.translate(state.x, state.y);
+        ctx.rotate(state.rotation * Math.PI / 180);
+        // smoothing đẹp hơn khi scale/rotate
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(state.fg, -w / 2, -h / 2, w, h);
+        ctx.restore();
+
+        // khung nét đứt chỉ hiển thị khi showGuide=true và không kéo
+        if (state.showGuide && !state.dragging) {
+          ctx.save();
+          ctx.translate(state.x, state.y);
+          ctx.rotate(state.rotation * Math.PI / 180);
+          ctx.strokeStyle = 'rgba(34,211,238,.8)';
+          ctx.lineWidth = Math.max(1, canvas.width / 800);
+          ctx.setLineDash([6, 4]);
+          ctx.strokeRect(-w / 2, -h / 2, w, h);
+          ctx.restore();
+        }
+      }
+    }
+
+    function drawCheckerboard(c, W, H) {
+      const size = Math.max(12, Math.floor(Math.min(W, H) / 40));
+      for (let y = 0; y < H; y += size) {
+        for (let x = 0; x < W; x += size) {
+          c.fillStyle = ((x / size + y / size) & 1) ? '#0b1220' : '#0e1627';
+          c.fillRect(x, y, size, size);
+        }
+      }
+    }
+
+    /* ===================== Overlay transforms ===================== */
+    function centerOverlay() {
+      state.x = canvas.width / 2;
+      state.y = canvas.height / 2;
+      scheduleRender();
+    }
+    function resetAll() {
+      state.fg = null;
+      state.scale = 1;
+      state.rotation = 0;
+      ui.scaleRange.value = 1;
+      ui.scaleVal.textContent = '1.00×';
+      ui.rotateRange.value = 0;
+      ui.rotateVal.textContent = '0°';
+      scheduleRender();
+    }
+    function setScale(v) {
+      v = Math.max(0.05, Math.min(10, Number(v) || 1));
+      state.scale = v;
+      ui.scaleVal.textContent = `${v.toFixed(2)}×`;
+      scheduleRender();
+    }
+    function setRotate(v) {
+      v = Number(v) || 0;
+      state.rotation = v;
+      ui.rotateVal.textContent = `${Math.round(v)}°`;
+      scheduleRender();
+    }
+    function nudge(dx, dy) {
+      state.x += dx; state.y += dy; scheduleRender();
+    }
+    function scaleStep(f) { setScale(state.scale * f); ui.scaleRange.value = state.scale; }
+
+    /* ===================== Pointer & gestures ===================== */
+    const toCanvasPos = (clientX, clientY) => {
+      const x = (clientX - map.left) * map.sx;
+      const y = (clientY - map.top) * map.sy;
+      return { x, y };
+    };
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!state.fg) return;
+      canvas.setPointerCapture(e.pointerId);
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (state.pointers.size === 1) {
+        const { x, y } = toCanvasPos(e.clientX, e.clientY);
+        state.dragging = true;
+        state.dragOffset.x = x - state.x;
+        state.dragOffset.y = y - state.y;
+        scheduleRender();
+      }
+      else if (state.pointers.size === 2) {
+        state.gestureStart = snapshotGesture();
+      }
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!state.fg) return;
+      if (!state.pointers.has(e.pointerId)) return;
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (state.pointers.size === 1 && state.dragging) {
+        const { x, y } = toCanvasPos(e.clientX, e.clientY);
+        state.x = x - state.dragOffset.x;
+        state.y = y - state.dragOffset.y;
+        scheduleRender();
+      }
+      else if (state.pointers.size === 2) {
+        const start = state.gestureStart || snapshotGesture();
+        const now = snapshotGesture();
+        if (start && now) {
+          // translate
+          const dx = now.center.x - start.center.x;
+          const dy = now.center.y - start.center.y;
+          const stageRect = canvas.getBoundingClientRect();
+          state.x += dx * (canvas.width / stageRect.width);
+          state.y += dy * (canvas.height / stageRect.height);
+          // scale
+          const scaleFactor = now.distance / start.distance;
+          setScale(state.scale * scaleFactor);
+          ui.scaleRange.value = state.scale;
+          // rotate (degrees)
+          const dAngle = (now.angle - start.angle) * (180 / Math.PI);
+          setRotate(state.rotation + dAngle);
+          ui.rotateRange.value = state.rotation;
+          // refresh baseline
+          state.gestureStart = now;
+          scheduleRender();
+        }
+      }
+    });
+
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(evt => {
+      canvas.addEventListener(evt, (e) => {
+        if (state.pointers.has(e.pointerId)) {
+          state.pointers.delete(e.pointerId);
+        }
+        state.dragging = false;
+        if (state.pointers.size < 2) state.gestureStart = null;
+        canvas.releasePointerCapture?.(e.pointerId);
+        scheduleRender();
+      });
+    });
+
+    // Wheel to zoom
+    canvas.addEventListener('wheel', (e) => {
+      if (!state.fg) return;
+      e.preventDefault();
+      const delta = Math.sign(e.deltaY); // 1 or -1
+      const factor = delta > 0 ? 0.92 : 1.08;
+      scaleStep(factor);
+      ui.scaleRange.value = state.scale;
+    }, { passive: false });
+
+    function snapshotGesture() {
+      if (state.pointers.size !== 2) return null;
+      const [a, b] = [...state.pointers.values()];
+      const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const angle = Math.atan2(dy, dx); // radians
+      return { center, distance, angle };
+    }
+
+    /* ===================== Export ===================== */
+    async function exportPNG() {
+      if (!state.bg) {
+        if (!confirm('Chưa chọn ảnh nền. Vẫn lưu khung hiện tại?')) return;
+      }
+      const prev = state.showGuide;
+      state.showGuide = false; // không vẽ khung khi export
+      render();
+      canvas.toBlob((blob) => {
+        if (!blob) { alert('Xuất ảnh thất bại.'); state.showGuide = prev; render(); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = new Date().getTime()+'.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+        state.showGuide = prev; // khôi phục khung cho lần chỉnh tiếp
+        render();
+      }, 'image/png');
+    }
+
+    /* ===================== Responsive canvas display ===================== */
+    function fitCanvasCSS() {
+      const wrap = document.querySelector('.stage');
+      if (!wrap) return;
+      // set stage height based on viewport minus chrome
+      const header = document.querySelector('header');
+      const toolbar = document.querySelector('.toolbar');
+      const footer = document.querySelector('footer');
+      const topH = (header?.offsetHeight || 0);
+      const botH = (toolbar?.offsetHeight || 0) + (footer?.offsetHeight || 0);
+      const pad = 24;
+      const availH = Math.max(200, window.innerHeight - topH - botH - pad);
+      // wrap.style.height = Math.floor(availH) + 'px';
+      // wrap.style.maxHeight = Math.floor(availH) + 'px';
+      // wrap.height = canvas.height; // giữ tỉ lệ 1:1
+      // wrap.width = canvas.width;
+
+      const r = (canvas.width || state.width) / (canvas.height || state.height) || 1;
+      const wrapW = wrap.clientWidth;
+      const wrapH = wrap.clientHeight;
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      recomputeCanvasMapping();
+    }
+
+    function toggleViewMode() {
+      state.viewMode = (state.viewMode === 'fit') ? '1:1' : 'fit';
+      updateViewModeLabel();
+      fitCanvasCSS();
+    }
+    function updateViewModeLabel() {
+      const btn = document.getElementById('viewModeBtn');
+      if (!btn) return;
+      // btn.textContent = 'Chế độ: ' + (state.viewMode === 'fit' ? 'Vừa khung' : '1:1 (pixel thật)');
+    }
+  </script>
+
+
+
+<script type="module">
+  import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
+
+  // Tối ưu backend: ưu tiên WebGPU, fallback WebAssembly
+  // (Bạn có thể bỏ dòng dưới nếu không cần chỉnh đường dẫn WASM)
+  //env.backends.onnx.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.15.0/dist/ort-wasm-simd.wasm";
+
+// Pipeline Background Removal với briaai/RMBG-1.4 (chạy local)
+  const rmbg = await pipeline("background-removal", "briaai/RMBG-1.4", {
+    quantized: true
+  });
+
+
+  // Helper: chuyển HTMLImageElement -> ImageData (tránh vấn đề blob:null)
+  function imageToImageData(img) {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const off = document.createElement("canvas");
+    off.width = w; off.height = h;
+    const octx = off.getContext("2d");
+    octx.drawImage(img, 0, 0, w, h);
+    return octx.getImageData(0, 0, w, h);
+  }
+
+  async function removeBgRMBGInternal() {
+    if (!state.fg) {
+      alert("Hãy chọn PNG (overlay) trước.");
+      return;
+    }
+
+    // 1) Chuẩn bị input: ImageData
+    const input = imageToImageData(state.fg);
+
+    // 2) Chạy model
+    const output = await rmbg(input);
+    const seg = Array.isArray(output) ? output[0] : output;
+
+    // --- Có 2 khả năng tùy phiên bản model/pipeline ---
+    // A) seg là ImageData foreground đã có alpha trong suốt
+    if (seg instanceof ImageData) {
+      const out = document.createElement("canvas");
+      out.width = seg.width; out.height = seg.height;
+      out.getContext("2d").putImageData(seg, 0, 0);
+      await new Promise(res => out.toBlob(b => {
+        const url = URL.createObjectURL(b);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          state.fg = img; // giữ nguyên x/y/scale/rotation
+          (window.scheduleRender ? scheduleRender() : render());
+          res();
+        };
+        img.src = url;
+      }, "image/png"));
+      return;
+    }
+
+    // B) seg.mask là mask (canvas/ImageData/bitmap); áp mask để giữ foreground
+    const W = state.fg.naturalWidth, H = state.fg.naturalHeight;
+    const maskCanvas = document.createElement("canvas");
+    maskCanvas.width = W; maskCanvas.height = H;
+    const mctx = maskCanvas.getContext("2d");
+
+    if (seg?.mask instanceof ImageData) {
+      const tmp = document.createElement("canvas");
+      tmp.width = seg.mask.width; tmp.height = seg.mask.height;
+      tmp.getContext("2d").putImageData(seg.mask, 0, 0);
+      mctx.drawImage(tmp, 0, 0, W, H);
+    } else if (seg?.mask) {
+      mctx.drawImage(seg.mask, 0, 0, W, H);
+    } else {
+      console.error("RMBG output không có seg.mask hoặc ImageData trực tiếp:", seg);
+      alert("Không nhận được dữ liệu mask hợp lệ từ RMBG.");
+      return;
+    }
+
+    // Feather viền nhẹ cho tự nhiên
+    mctx.filter = "blur(1px)";
+    mctx.drawImage(maskCanvas, 0, 0);
+    mctx.filter = "none";
+
+    // Áp mask vào overlay
+    const out = document.createElement("canvas");
+    out.width = W; out.height = H;
+    const octx = out.getContext("2d");
+    octx.drawImage(state.fg, 0, 0, W, H);
+    octx.globalCompositeOperation = "destination-in";
+    octx.drawImage(maskCanvas, 0, 0, W, H);
+    octx.globalCompositeOperation = "source-over";
+
+    await new Promise(res => out.toBlob(b => {
+      const url = URL.createObjectURL(b);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        state.fg = img;
+        (window.scheduleRender ? scheduleRender() : render());
+        res();
+      };
+      img.src = url;
+    }, "image/png"));
+  }
+
+  // Gắn ra global cho nút onclick
+  window.removeBgRMBG = () => {
+    const btn = document.getElementById("rmbgBtn");
+    const prev = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = "Đang tách nền..."; }
+    removeBgRMBGInternal()
+      .catch(err => { console.error(err); alert("Tách nền thất bại. Xem console để biết chi tiết."); })
+      .finally(() => { if (btn) { btn.disabled = false; btn.textContent = prev || "Tách nền (RMBG)"; } });
+  };
+</script>
+
+
+
+
+
+
+<script src="https://static.app/js/static.js" type="text/javascript"></script>
+</body>
+
+</html>
