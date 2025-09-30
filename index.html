@@ -206,7 +206,6 @@
       }
     }
   </style>
-
 </head>
 
 <body>
@@ -628,128 +627,6 @@
       // btn.textContent = 'Chế độ: ' + (state.viewMode === 'fit' ? 'Vừa khung' : '1:1 (pixel thật)');
     }
   </script>
-
-
-
-<script type="module">
-  import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
-
-  // Tối ưu backend: ưu tiên WebGPU, fallback WebAssembly
-  // (Bạn có thể bỏ dòng dưới nếu không cần chỉnh đường dẫn WASM)
-  //env.backends.onnx.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.15.0/dist/ort-wasm-simd.wasm";
-
-// Pipeline Background Removal với briaai/RMBG-1.4 (chạy local)
-  const rmbg = await pipeline("background-removal", "briaai/RMBG-1.4", {
-    quantized: true
-  });
-
-
-  // Helper: chuyển HTMLImageElement -> ImageData (tránh vấn đề blob:null)
-  function imageToImageData(img) {
-    const w = img.naturalWidth, h = img.naturalHeight;
-    const off = document.createElement("canvas");
-    off.width = w; off.height = h;
-    const octx = off.getContext("2d");
-    octx.drawImage(img, 0, 0, w, h);
-    return octx.getImageData(0, 0, w, h);
-  }
-
-  async function removeBgRMBGInternal() {
-    if (!state.fg) {
-      alert("Hãy chọn PNG (overlay) trước.");
-      return;
-    }
-
-    // 1) Chuẩn bị input: ImageData
-    const input = imageToImageData(state.fg);
-
-    // 2) Chạy model
-    const output = await rmbg(input);
-    const seg = Array.isArray(output) ? output[0] : output;
-
-    // --- Có 2 khả năng tùy phiên bản model/pipeline ---
-    // A) seg là ImageData foreground đã có alpha trong suốt
-    if (seg instanceof ImageData) {
-      const out = document.createElement("canvas");
-      out.width = seg.width; out.height = seg.height;
-      out.getContext("2d").putImageData(seg, 0, 0);
-      await new Promise(res => out.toBlob(b => {
-        const url = URL.createObjectURL(b);
-        const img = new Image();
-        img.onload = () => {
-          URL.revokeObjectURL(url);
-          state.fg = img; // giữ nguyên x/y/scale/rotation
-          (window.scheduleRender ? scheduleRender() : render());
-          res();
-        };
-        img.src = url;
-      }, "image/png"));
-      return;
-    }
-
-    // B) seg.mask là mask (canvas/ImageData/bitmap); áp mask để giữ foreground
-    const W = state.fg.naturalWidth, H = state.fg.naturalHeight;
-    const maskCanvas = document.createElement("canvas");
-    maskCanvas.width = W; maskCanvas.height = H;
-    const mctx = maskCanvas.getContext("2d");
-
-    if (seg?.mask instanceof ImageData) {
-      const tmp = document.createElement("canvas");
-      tmp.width = seg.mask.width; tmp.height = seg.mask.height;
-      tmp.getContext("2d").putImageData(seg.mask, 0, 0);
-      mctx.drawImage(tmp, 0, 0, W, H);
-    } else if (seg?.mask) {
-      mctx.drawImage(seg.mask, 0, 0, W, H);
-    } else {
-      console.error("RMBG output không có seg.mask hoặc ImageData trực tiếp:", seg);
-      alert("Không nhận được dữ liệu mask hợp lệ từ RMBG.");
-      return;
-    }
-
-    // Feather viền nhẹ cho tự nhiên
-    mctx.filter = "blur(1px)";
-    mctx.drawImage(maskCanvas, 0, 0);
-    mctx.filter = "none";
-
-    // Áp mask vào overlay
-    const out = document.createElement("canvas");
-    out.width = W; out.height = H;
-    const octx = out.getContext("2d");
-    octx.drawImage(state.fg, 0, 0, W, H);
-    octx.globalCompositeOperation = "destination-in";
-    octx.drawImage(maskCanvas, 0, 0, W, H);
-    octx.globalCompositeOperation = "source-over";
-
-    await new Promise(res => out.toBlob(b => {
-      const url = URL.createObjectURL(b);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        state.fg = img;
-        (window.scheduleRender ? scheduleRender() : render());
-        res();
-      };
-      img.src = url;
-    }, "image/png"));
-  }
-
-  // Gắn ra global cho nút onclick
-  window.removeBgRMBG = () => {
-    const btn = document.getElementById("rmbgBtn");
-    const prev = btn?.textContent;
-    if (btn) { btn.disabled = true; btn.textContent = "Đang tách nền..."; }
-    removeBgRMBGInternal()
-      .catch(err => { console.error(err); alert("Tách nền thất bại. Xem console để biết chi tiết."); })
-      .finally(() => { if (btn) { btn.disabled = false; btn.textContent = prev || "Tách nền (RMBG)"; } });
-  };
-</script>
-
-
-
-
-
-
-<script src="https://static.app/js/static.js" type="text/javascript"></script>
 </body>
 
 </html>
